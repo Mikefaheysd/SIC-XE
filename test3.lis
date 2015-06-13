@@ -1,0 +1,13 @@
+Line#	Address	Label	Opcode	Operand	Machine code
+=====	=======	=====	======	=======	=========== 
+   1   00000                         start          $1000                    
+   2   01000                          +add          delta            1B10100B
+   3   01004                          base          alpha                    
+   4   01004                           equ              4                    
+   5   01004                          +add           beta            1B101047
+   6   01008            foo           word             10              00000A
+   7   0100B          delta           resw             10                    
+   8   01029          alpha           resw             10                    
+   9   01047           beta           resw             10                    
+  10   01065            eta           byte      X'FFFFFE'              FFFFFE
+  11   01068                           end           prog                    

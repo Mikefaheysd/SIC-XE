@@ -1,0 +1,41 @@
+Line#	Address	Label	Opcode	Operand             Machine code
+=====	=======	=====	======	=======             =========== 
+1	00000	 	 	                          
+2	00000	 	 	                     
+3	00000	 	 	                     
+4	00000	 	 	                     
+5	00000	PROG	start	0                    
+6	00000	BSRCH	EQU	6000                 
+7	00000	OFFB	EQU	8                    
+8	00000		BASE	DELTA                
+9	00000		LDB	#DELTA              69211D
+10	00003		LDS	#3                  6D0003
+11	00006		LDX	@FOO                062143
+12	00009		+LDA	BETA,X              039000CC
+13	0000D		ADD	GAMMA               1B20EC
+14	00010		LDX	@ZETA               062110
+15	00013	FIRST	NORM	                    C8
+16	00014		+J	FIRST               3F100013
+17	00018		CLEAR	T                   B450
+18	0001A		+LDT	#50000              7510C350
+19	0001E		LDX	#0                  050000
+20	00021		+JSUB	BSRCH               4B101770
+21	00025	ADDL	LDA	ALPHA,X             03A014
+22	00028		ADD	BETA,X              1BA0A1
+23	0002B		STA	GAMMA,X             0FA0CE
+24	0002E		ADDR	S,T                 9045
+25	00030		COMPR	X,T                 A015
+26	00032		+JLT	ADDL                3B100025
+27	00036		JLT	ADDL                3B2FEC
+28	00039		RSUB	                    4F0000
+29	0003C		 	                     
+30	0003C	ALPHA	RESW	48                   
+31	000CC	BETA	RESW	16                   
+32	000FC	GAMMA	RESW	12                   
+33	00120	DELTA	WORD	20                  000014
+34	00123	ZETA	byte	C'EOF'              454F46
+35	00126	ETA	BYTE	X'FFFFFE'           FFFFFE
+36	00129	THETA	BYTE	C'eof'              656F66
+37	0012C	BUFFER	RESB	32                   
+38	0014C	FOO	WORD	1                   000001
+39	0014F		END	PROG                 

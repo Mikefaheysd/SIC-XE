@@ -6,27 +6,29 @@
 
 #ifndef FILE_PARSE_EXCEPTION_H
 #define FILE_PARSE_EXCEPTION_H
-#include <string>
 
-using namespace std;
+#include <string>
 
 class file_parse_exception {
 
-public:
-    file_parse_exception(string s) {
-        message = s;        
+    public:
+        file_parse_exception(std::string s)
+        {
+            message = s;
         }
-        
-    file_parse_exception() {
-        message = "An error has occurred";
+
+        file_parse_exception()
+        {
+            message = "An error has occurred";
         }
-        
-    string getMessage() {
-        return message;
-    }
-    
-private:
-    string message;
+
+        std::string getMessage()
+        {
+            return message;
+        }
+
+    private:
+        std::string message;
     
 };
 #endif

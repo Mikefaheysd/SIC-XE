@@ -14,9 +14,9 @@ Line#	Address	Label	Opcode	Operand		Machine code
 12	01012		addr	s,x		           9041
 13	01014		compr	x,t		           A015
 14	01016		jlt	addlf		         3B2FF0
-15	01019	 	 	 		               
-16	01019	alpha	resb	100		               
-17	0107D	beta	resb	100		               
-18	010E1	gamma	resw	100		               
+15	01019
+16	01019	alpha	resb	100
+17	0107D	beta	resb	100
+18	010E1	gamma	resw	100
 19	0120D		byte	C'EEEEEF'		   454545454546
-20	01213		end	prog		               
+20	01213		end	prog

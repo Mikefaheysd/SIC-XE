@@ -5,44 +5,83 @@
     CS530, Spring 2014
 */
 
+#include <iomanip>
+#include <sstream>
+#include <algorithm>
+#include <iostream>
+
 #include "symtab.h"
+#include "sicxe_asm.h"
+#include "symtab_exception.h"
 
+using namespace std;
 
-//gets the starting address of the program in decimal
-int symtab::get_start(string s){
-	int address = 0;
+symtab::symtab(file_parser *fparser) : start(0)
+{
+	this->fparser = fparser;
+	this->opTab = new opcodetab();
+}
+
+symtab::~symtab()
+{
+    if (NULL != fparser)
+    {
+        delete fparser;
+    }
+
+    if (NULL != opTab)
+    {
+        delete opTab;
+    }
+}
+
+// gets the starting address of the program in decimal
+// if no start address is provided, default to address 0
+unsigned int symtab::get_start()
+{
+	unsigned int address = 0;
 	string token;
-	file_parser parser(s);
-	parser.read_file();	//read in file, check for errors
-	for(int i = 0; i<parser.size(); i++){
-		for(int j = 0; j < 4; j++){	//iterate through all opcodes
-		token = parser.get_token(i,j);	
-		transform(token.begin(),token.end(),token.begin(),::toupper);
-			if(token == "START"){	
-				token = parser.get_token(i,j+1);	//look for start opcode
-				int pos = token.find("$");
-					if(pos==-1){		//test if operand is hex or decimal
-						address = string_to_int(token); //convert string to int
-						
-					}
-					else{
-						token = token.substr(pos+1);
-						address = hex_to_int(token);	//convert hex to int
-					}
-			}	
-		}
-	}	
+
+	// look through all tokens for START opcode
+	for(int i = 0; i < fparser->size(); i++)
+	{
+	    token = fparser->get_token(i, OPCODE_COL);
+        transform(token.begin(), token.end(), token.begin(), ::toupper);
+
+        if("START" == token)
+        {
+            // operand contains the address to start from.
+            // The starting address can be HEX ($) or decimal.
+            token = fparser->get_token(i, OPERAND_COL);
+
+            //test if operand is decimal or hex
+            int pos = token.find("$");
+            if (-1 == pos) // decimal
+            {
+                address = string_to_int(token);
+            }
+            else // HEX
+            {
+                // strip out '$' from start address
+                token = token.substr(pos + 1);
+                address = hex_to_int(token);
+            }
+        }
+	}
+
 	return address;
 }
 
-//creates the .lis file to write to 
-string symtab::create_file(string s){
-	int i = s.find(".");	//search for extention
-	if (i==-1)
-		i = s.length();
-	s=s.substr(0,i);
-	s.append(".lis");	//attach .lis extention to file
-	return s;
+// appends the .lis extension to the existing filename
+string symtab::create_file(string filename)
+{
+    // search for extension on filename
+	unsigned long extPos = filename.find(".");
+	filename = filename.substr(0, extPos);
+
+    // attach .lis extension to filename
+    filename.append(".lis");
+	return filename;
 }
 
 //write the line number, address, label, opcode and operand to file
@@ -51,10 +90,8 @@ void symtab::write_to_file(string s, int size, string filename){
 	int space=25;
 	string token;
 	sicxe_asm sic;
-	int start=get_start(filename);
+	int start=get_start();
 	sic.get_machine_code(filename,start);
-	file_parser parser(filename);
-	parser.read_file();
 	fout.open(s.c_str());		//open previously created file from create_file
 	fout<<"Line#"<<"\t"<<"Address"<<"\t"<<"Label"<<"\t"<<"Opcode"<<"\t"<<"Operand"<<setw(25)<<"Machine code"<<endl;
 	fout<<"====="<<"\t"<<"======="<<"\t"<<"====="<<"\t"<<"======"<<"\t"<<"======="<<setw(25)<<"=========== "<<endl;
@@ -62,7 +99,7 @@ void symtab::write_to_file(string s, int size, string filename){
 		for(int i = 0; i<size; i++){
 		fout<< line << "\t" <<int_to_hex(v[i],5);
 			for(int j = 0; j < 3; j++){		//iterate through label, opcode, operand
-				token = parser.get_token(i,j);  //and write to file
+				token = fparser->get_token(i,j);  //and write to file
 				fout<<"\t"<<token;	
 		 	}
 		space=space-token.length();
@@ -148,106 +185,155 @@ void symtab::write_to_obj(string filename,int start,int size){
 	fout.close();
 }
 
-//generates all of the address for the input file
-//stores in a vector, takes in starting address
-//handles all cases of assembler directives
-void symtab::create_address(string s,int start){
-	int j = 1;
+// generates all of the address for the input file
+// handles all cases of assembler directives
+void symtab::create_address()
+{
+    const unsigned int WORD_SIZE = 3;
 	int address = 0;
-	string opcode;
-	opcodetab obj;
-	file_parser parser(s);
-	parser.read_file();	//reads in file
-	for(int i=0; i <parser.size();i++){
-		opcode = parser.get_token(i,j);
-		transform(opcode.begin(),opcode.end(),opcode.begin(),::toupper);
-		if(opcode==" ")					/*begin check for assembler directives*/
-			v.push_back(address);
-		else if(opcode=="START"){
+	string opcode = "";
+
+	for(unsigned int i = 0; i < fparser->size(); i++)
+	{
+		opcode = fparser->get_token(i, OPCODE_COL);
+		transform(opcode.begin(), opcode.end(), opcode.begin(), ::toupper);
+
+        /* begin check for assembler directives */
+		if("" == opcode)
+		{
+            v.push_back(address);
+        }
+		else if("START" == opcode)
+		{
 			v.push_back(address);
 			address = start;
 		}
-		else if(opcode=="END"){
+		else if("END" == opcode)
+		{
 			v.push_back(address);
+			// reached end of program, no further instructions are valid. exit
 			break;
 		}
-		else if(opcode == "WORD"){
-		        v.push_back(address);
-			address= address + 3;
-			
+		else if("WORD" == opcode)
+        {
+		    v.push_back(address);
+			address += WORD_SIZE;
 		}
-		else if(opcode == "BYTE"){
-			string byte = parser.get_token(i,j+1);
-			v.push_back(address);
-			if(byte.substr(0,1)== "X"||byte.substr(0,1)=="x"){
-				if(byte.length()%2==0)
-					throw symtab_exception(string_to_sstring(byte));
+		else if("BYTE" == opcode)
+		{
+            v.push_back(address);
+			string byte = fparser->get_token(i, OPERAND_COL);
+
+			if(('X' == byte[0]) || ('x' == byte[0]))
+			{
+				if(0 == (byte.length() % 2))
+					throw symtab_exception("Symtab exception on line: " + byte);
 				else
-					address = address + (((byte.length())-3)/2);
+					address += ((byte.length() - 3) / 2);
 			}
-			else if(byte.substr(0,1)== "C"||byte.substr(0,1)=="c")
-				address = address + (byte.length()-3);
-			else
-				throw symtab_exception(string_to_sstring(byte));
+			else if(('C' == byte[0]) || ('c' == byte[0]))
+			{
+                address += (byte.length() - 3);
+            }
+			else // invalid syntax
+			{
+                throw symtab_exception("Symtab exception on line: " + byte);
+            }
 		}
-		else if(opcode=="RESB"){
-			string rbyte = parser.get_token(i,j+1);
-				v.push_back(address);
-			address = address + string_to_int(rbyte);
+		else if("RESB" == opcode)
+		{
+			string rbyte = fparser->get_token(i, OPERAND_COL);
+			v.push_back(address);
+			address += string_to_int(rbyte);
 		}
-		else if (opcode=="RESW"){
-			string rword = parser.get_token(i,j+1);
-				v.push_back(address);
-			address = address + string_to_int(rword) *3;	
+		else if ("RESW" == opcode)
+		{
+			string rword = fparser->get_token(i, OPERAND_COL);
+			v.push_back(address);
+			address += (string_to_int(rword) * WORD_SIZE);
 		}
-		else if(opcode == "EQU"){
+		else if("EQU" == opcode)
+		{
+            // does not cause a change in address, use previous version of address
 			v.push_back(v[i-1]);
 		}
-		else if(opcode == "BASE"){
-			if(check_assembler(parser.get_token(i-1,j))==0){
-				v.push_back(v[i-1]);
-			}else{
-				//address= address + obj.get_instruction_size(parser.get_token(i-1,j));
+		else if("BASE" == opcode)
+		{
+			if(0 == (check_assembler(fparser->get_token(i-1, OPCODE_COL))))
+			{
+                // does not cause a change in address, use previous version of address
+                v.push_back(v[i-1]);
+			}
+			else
+			{
 				v.push_back(address);
 			}
 		}
-		else if(opcode=="NOBASE"){
-			v.push_back(v[i-1]);			/*end check for assembler directive*/
+		else if("NOBASE" == opcode)
+		{
+		    // does not cause a change in address, use previous version of address
+			v.push_back(v[i-1]);
 		}
-		else {
-			v.push_back(address);			//push decimal address to back of vector
-			address = address + obj.get_instruction_size(opcode); //update address 
+		/* end check for assembler directive */
+
+        else // default
+        {
+			v.push_back(address);
+			address += opTab->get_instruction_size(opcode);
 		}
 	}
 }
 
-//creates symbol table for file using map
-//stores label as key and address/constant as value
-void symtab::create_symtab(string s,int start){
-	string check;
-	file_parser parser(s);
-	parser.read_file();	//reads in file
-	create_address(s,start);
-	for(int i = 0; i<parser.size()-1; i++){
-	if(parser.get_token(i,0).length()>0 && parser.get_token(i,0)!=" "){
-		check =(parser.get_token(i,1));		//iterates through labels
-		check = to_uppercase(check);
-		if(check == "EQU"){			//handles EQU cases
-			check = parser.get_token(i,2);
-			int n= string_to_int(check);
-			if(n==0){
-				continue;
-			}
-			check=int_to_hex(n,4);
-			table [parser.get_token(i,0)] = check;	//puts symbol into table
-			continue;	
-		}
-		if(table.find(parser.get_token(i,0))!=table.end())	//checks to see if token already defined in symtable
-			throw symtab_exception(string_to_sstring(parser.get_token(i,0)));
-		table [parser.get_token(i,0)] = int_to_hex(v[i],5);
-	}
-	
-	}
+// creates symbol table for file using map
+// stores into map with label as key and address/constant as value
+void symtab::create_symtab()
+{
+    // validate labels before proceeding
+    checkForDuplicates();
+
+	start = get_start();
+	create_address();
+
+}
+
+void symtab::checkForDuplicates()
+{
+    string token = "";
+
+    // iterates through labels checks for duplicates.
+    // all labels must be unique
+    for(int i = 0; i < fparser->size(); i++)
+    {
+        if(!(fparser->get_token(i, LABEL_COL).empty()))
+        {
+            token = fparser->get_token(i, OPCODE_COL);
+            token = to_uppercase(token);
+
+            // handles EQU cases
+            if("EQU" == token)
+            {
+                token = fparser->get_token(i, OPERAND_COL);
+                int n = string_to_int(token);
+
+                if(0 != n)
+                {
+                    token = int_to_hex(n, 4);
+
+                    // checks to see if token already defined in symtable
+                    if(table.end() != table.find(fparser->get_token(i, LABEL_COL)))
+                        throw symtab_exception("Duplicate label symtab exception on token: " + (fparser->get_token(i, LABEL_COL)));
+                    table[fparser->get_token(i, LABEL_COL)] = token;	//puts symbol into table
+                }
+            }
+            else
+            {
+                // checks to see if token already defined in symtable
+                if(table.end() != table.find(fparser->get_token(i, LABEL_COL)))
+                    throw symtab_exception("Duplicate label symtab exception on token: " + fparser->get_token(i, LABEL_COL));
+                table[fparser->get_token(i, LABEL_COL)] = int_to_hex(v[i], 5);
+            }
+        }
+    }
 }
 
 //Function to convert string to int
@@ -278,23 +364,8 @@ int symtab::hex_to_int(string s){
 	return value;
 }
 
-//converts string to sstream
-string symtab::string_to_sstring (string st){
-	ostringstream s;
-	s<<"symtab exception on line "<<st;
-	return s.str();
-}
-
-//converts int to string
-string symtab::int_to_string(int a){
-	stringstream ss;
-	ss << a;
-	string str = ss.str();
-	return str;
-
-}
 int symtab::current_address(string filename, int start, int index){
-	create_address(filename,start);
+	create_address(filename, start);
 	int add=v[index];
 	return add;
 }
@@ -331,39 +402,59 @@ int symtab::get_base(string operand, string filename,int start){
 	 return add;
 }
 
-int symtab::check_assembler(string opcode){
-		opcode = to_uppercase(opcode);
-		if(opcode==" ")					/*begin check for assembler directives*/
-			return 1;
-		else if(opcode=="START"){
-			return 0;
-		}
-		else if(opcode=="END"){
-			return 0;
-		}
-		else if(opcode == "WORD"){
-		      return 0;
-			
-		}
-		else if(opcode == "BYTE"){
-			return 0;
-		}
-		else if(opcode=="RESB"){
-			return 0;
-		}
-		else if (opcode=="RESW"){
-			return 0;
-		}
-		else if(opcode == "EQU"){
-			return 0;
-		}
-		else if(opcode == "BASE"){
-			return 0;
-		}
-		else if(opcode=="NOBASE"){
-			return 0;			/*end check for assembler directive*/
-		}
-	return 1;
+int symtab::check_assembler(string opcode)
+{
+    int retVal = 1;
+    opcode = to_uppercase(opcode);
+
+    /* begin check for assembler directives */
+    if("" == opcode)
+    {
+        retVal = 1;
+    }
+    else if("START" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("END" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("WORD" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("BYTE" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("RESB" == opcode)
+    {
+        retVal = 0;
+    }
+    else if ("RESW" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("EQU" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("BASE" == opcode)
+    {
+        retVal = 0;
+    }
+    else if("NOBASE" == opcode)
+    {
+        retVal = 0;
+    }
+    else // default
+    {
+        retVal = 1;
+    }
+    /* end check for assembler directive */
+
+	return retVal;
 }
 
 //creates the header record
@@ -406,25 +497,26 @@ string symtab::create_text(string filename, int start,int position, int flag){
 	return text;
 }
 
-//creates the end record
-string symtab::create_end(int start){
-	string end="";
-	end=int_to_hex(start,6); //gets starting address
-	end.insert(0,"E");
+// creates the end record
+string symtab::create_end(int start)
+{
+	string end = "";
+	end = int_to_hex(start, 6); //gets starting address
+	end.insert(0, "E");
 	return end;
 }
 
 //creates modified record
-string symtab::create_m(string filename,int start,int position){
-	file_parser parser(filename);
-	parser.read_file();
-	opcodetab tab;
+string symtab::create_m(string filename, int start, int position)
+{
 	string modified="";
-	string operand=parser.get_token(position,2);
-	string opcode = parser.get_token(position,1);
+    string opcode = fparser->get_token(position, OPCODE_COL);
+	string operand = fparser->get_token(position, OPERAND_COL);
+
 	opcode = to_uppercase(opcode);
+
 	if(check_assembler(opcode)==1 && opcode!=" "){ 
-		if(tab.get_instruction_size(parser.get_token(position,1))==4){
+		if(opTab->get_instruction_size(fparser->get_token(position, OPCODE_COL))==4){
 			if(get_base(operand,filename,start)!=-1){
 				modified="M";
 				modified.append(int_to_hex(v[position]+1,6));

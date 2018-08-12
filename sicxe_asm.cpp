@@ -4,44 +4,68 @@
     prog4
     CS530, Spring 2014
 */
+
+#include <iostream>
+#include <fstream>
+#include <bitset>
+#include <iomanip>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "sicxe_asm.h"
+#include "symtab_exception.h"
+#include "file_parse_exception.h"
+#include "opcode_error_exception.h"
 
 using namespace std;
 
-int main(int argc, char *argv[]) {
-    if(argc != 2) {
-        cout << "Error, you must supply the name of the file " <<
-        "to process at the command line." << endl;
-        exit(1);
-    }
-   string filename = argv[1];
-   sicxe_asm obj;
-   obj.error_check(filename);
+sicxe_asm::sicxe_asm()
+{
+    fparser = NULL;
 }
-   
-//checks for errors and if no errors writes to file.   
-void sicxe_asm::error_check(string filename){
-   try{
-   	file_parser parser(filename);
-   	parser.read_file();
-  	int size = parser.size();
-  	sicxe_asm sic;
-   	symtab obj;
-   	int start = obj.get_start(filename);
-   	string newfile =obj.create_file(filename); //now has the filename.lis
-   	obj.create_address(filename,start);
-   	obj.write_to_file(newfile,size,filename);
-   	obj.create_symtab(filename,start);
+
+sicxe_asm::~sicxe_asm()
+{
+    if(NULL != fparser)
+    {
+        delete fparser;
     }
-    catch (symtab_exception excpt) {
-        cout << "**Sorry, error " << excpt.getMessage() << endl;
+
+}
+
+// checks for errors and if no errors writes to file.
+void sicxe_asm::appMain(string filename)
+{
+   try
+   {
+   		// read in the file and check files for errors
+        fparser = new file_parser(filename);
+        fparser->read_file();
+
+  	    int size = fparser->size();
+   	    symtab obj(fparser);
+
+   	    string newfile = obj.create_file(filename); //now has the filename.lis
+   	    obj.create_address();
+   	    obj.write_to_file(newfile,size,filename);
+   	    obj.create_symtab();
     }
-    catch (opcode_error_exception excpt) {
-        cout << "**Sorry, error " << excpt.getMessage() << endl;
+    catch (symtab_exception &e)
+	{
+        cout << "**Sorry, error " << e.getMessage() << endl;
     }
-    catch (file_parse_exception excpt) {
-        cout << "**Sorry, error " << excpt.getMessage() << endl;
+    catch (opcode_error_exception &e)
+	{
+        cout << "**Sorry, error " << e.getMessage() << endl;
     }
+    catch (file_parse_exception &e)
+	{
+        cout << "**Sorry, error " << e.getMessage() << endl;
+    }
+    catch (...)
+	{
+   		cout << "Encountered unhandled exception! " << __FILE__ << __LINE__ << endl;
+   }
 }
 
 //stores the string value of the machine code
@@ -54,13 +78,12 @@ void sicxe_asm::get_machine_code(string filename, int start){
 	string operand;
 	string machine_code;
 	string bits;
-	symtab sym;
+	symtab sym(file_parser(__1::basic_string()), file_parser(__1::basic_string()));
 	sicxe_asm obj;
 	opcodetab tab;
-	file_parser parser(filename);
-	parser.read_file();
-	for(int i=0; i<parser.size(); i++){
-		opcode = parser.get_token(i,1);
+
+	for(int i=0; i<fparser->size(); i++){
+		opcode = fparser->get_token(i,1);
 		opcode = sym.to_uppercase(opcode);
 		if(opcode == " "){
 			binary.push_back(opcode);
@@ -78,7 +101,7 @@ void sicxe_asm::get_machine_code(string filename, int start){
 			//convert decimal to hex
 			//fill all 6 hex digits
 			//push back as machine code
-			int word = sym.string_to_int(parser.get_token(i,2));
+			int word = sym.string_to_int(fparser->get_token(i,2));
 			opcode = sym.int_to_hex(word,6);
 			binary.push_back(opcode);
 			continue;
@@ -88,7 +111,7 @@ void sicxe_asm::get_machine_code(string filename, int start){
 			//if C, convert characters into hex values
 			//push back as machine code
 			string machine="";
-			operand = parser.get_token(i,2);
+			operand = fparser->get_token(i,2);
 			if(operand[0]=='X'||operand[0]=='x'){
 				int position = operand.find("'");
 				operand = operand.substr(position+1, operand.find_last_of("'")-2);
@@ -121,7 +144,7 @@ void sicxe_asm::get_machine_code(string filename, int start){
 		}
 		else if(opcode == "BASE"){
 			base++;
-			source=sym.get_base(parser.get_token(i,2),filename,start);
+			source=sym.get_base(fparser->get_token(i,2),filename,start);
 			binary.push_back(" ");
 			continue;
 		}
@@ -142,7 +165,7 @@ void sicxe_asm::get_machine_code(string filename, int start){
 		}
 		if(tab.get_instruction_size(opcode)==2){
 			machine_code = tab.get_machine_code(opcode);
-			operand = parser.get_token(i,2);
+			operand = fparser->get_token(i,2);
 			int position = operand.find(",");
 			//check for shiftl or shiftr
 			if(opcode=="SHIFTL"||opcode=="SHIFTR"){
@@ -170,7 +193,7 @@ void sicxe_asm::get_machine_code(string filename, int start){
 			machine_code="";
 			continue;
 		}else{
-			operand = parser.get_token(i,2);
+			operand = fparser->get_token(i,2);
 			machine_code = tab.get_machine_code(opcode);
 			machine_code = obj.hex_to_binary(machine_code);
 			machine_code = machine_code.substr(0,6);
@@ -319,7 +342,7 @@ void sicxe_asm::get_machine_code(string filename, int start){
 				string pced;
 				current = sym.current_address(filename,start,i);
 				current=current+3;
-				destination=sym.get_base(parser.get_token(i,2),filename,start);
+				destination=sym.get_base(fparser->get_token(i,2),filename,start);
 				int pc=destination-current;
 				if(pc<0 && pc>-2048){
 					pced=sym.int_to_hex(pc,3);
@@ -385,7 +408,7 @@ string sicxe_asm::set_i(string operand){
 	
 //returns value of x bit
 string sicxe_asm::set_x(string operand){
-	symtab sym;
+	symtab sym(file_parser(__1::basic_string()), file_parser(__1::basic_string()));
 	if(operand.find(",")>=0){
 		operand = operand.substr(operand.find(",")+1);
 		operand =sym.to_uppercase(operand);
@@ -432,7 +455,7 @@ string sicxe_asm::return_machine_code(int index){
 }
 //reurns corresponding register value
 string sicxe_asm::get_register(string reg){
-	symtab sym;
+	symtab sym(file_parser(__1::basic_string()), file_parser(__1::basic_string()));
 	reg = sym.to_uppercase(reg);
 	if(reg == "A")
 		return "0";
@@ -456,7 +479,8 @@ string sicxe_asm::get_register(string reg){
 string sicxe_asm::hex_to_binary(string s){
 	string binary="";
 	string byte;
-	for(unsigned int i=0; i<s.length(); i++){
+
+	for(unsigned int i = 0; i < s.length(); i++){
 		byte=s.substr(i,i+1);
 		if(byte=="0")
 			binary.append("0000");
@@ -491,6 +515,7 @@ string sicxe_asm::hex_to_binary(string s){
 		if(byte=="F")
 			binary.append("1111");
 	}
+
 	return binary;
 }
 //converts binary to hex

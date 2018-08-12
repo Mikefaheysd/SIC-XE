@@ -5,46 +5,104 @@
     CS530, Spring 2014
 */
 
-#include "file_parser.h"
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
+#include "file_parser.h"
+#include "file_parse_exception.h"
 
 using namespace std;
 
+// Takes in the filename and stores for later
+file_parser::file_parser(string filename)
+{
+    this->filename = filename;
+}
 
-//Takes in the filename and opens specified file, if file does not exist outputs error message.
-file_parser::file_parser(string filename){
-    	infile.open(filename.c_str()); 
+file_parser::~file_parser()
+{
+}
+
+// Stores each line of text into the back of a vector until end of file. Closes file upon completion
+void file_parser::read_file()
+{
+    ifstream infile;
+
+    // open file with read-only privileges
+	infile.open(filename.c_str(), ios::in);
+
+	// check to see if file opened successfully
 	if(!infile.is_open())
-		throw file_parse_exception(int_to_string(size()+2));
-	while(!infile.eof()){
-		getline(infile,line);
-		v.push_back(line);
-		}
-	infile.close();		
-}
+		throw file_parse_exception("Error: Failed to open file: " + filename);
 
-file_parser::~file_parser(){
-}
+    struct record rec;
+    string line;
 
-//Stores each line of text into the back of a vector until end of file. Closes file upon completetion
-void file_parser::read_file(){
+    // read the content of the file line by line
+	while(!infile.eof())
+	{
+	    // read the current line
+		getline(infile, line);
+
+		// reset data for line
+        rec.label =    "";
+        rec.comment =  "";
+        rec.opcode =   "";
+        rec.operand =  "";
+
+        // checks for empty line
+        if(line.empty())
+        {
+            // add empty line to data
+            lineContent.push_back(rec);
+            break;
+        }
+
+        // find the first character of the line
+        unsigned long index = line.find_first_not_of(" \t\r\n");
+
+        // check for no characters in the line
+        if(-1 == index)
+        {
+            // line only has whitespace, content is empty
+            lineContent.push_back(rec);
+            break;
+        }
+
+        // checks for full line comment
+        if('.' == line[index])
+        {
+            // update comment, leave everything else empty
+            rec.comment = line.substr(index);
+            lineContent.push_back(rec);
+            break;
+        }
+
+        /* line is not empty, has non-white space characters and is not a full line comment
+         * must have content to parse start search for label (optional), opcode, operand and comment (optional)
+         */
+
+        // check to see if label is on the line, labels start at position 0 on the line
+        // label can only be 8 characters and must begin with alphanumeric
+        if(0 == index)
+        {
+            // update label with line content
+            rec.label = "";
+        }
+    }
+
+
+
 	for(unsigned int i=0; i < v.size(); i++) {									
 		string line = v[i];
+        string label = " ";
+        string opcode = " ";					//clear each string for next use
+        string operand = " ";
+        string comment = " ";
 			while(1){
-			if(line[0] == '.'){		//checks to see if full line comment
-				label = " ";
-				opcode = " ";		
-				operand = " ";
-				comment = line;
-				break;
-			}
-			if(line.empty()){		//checks empty lines
-				label = " ";
-				opcode = " ";
-				operand = " ";
-				comment = " ";
-				break;	
-			}				/*start search for label*/
+
+			/*start search for label*/
 			int is_empty = line.find(" ");  	//validates there is a label, if not return empty string
 			if(is_empty == -1||is_empty>7)
 				is_empty = line.find ("\t");    //if line contains no spaces, check for tabs
@@ -172,19 +230,56 @@ void file_parser::read_file(){
 		operand = " ";
 		comment = " ";
 	}
-    infile.close();						//end reading file
+
+	// done reading file, clean up
+    infile.close();
 }
 
-//returns the elemnt in the vector by multiplying the row by 4 and adding
+//returns the element in the vector by multiplying the row by 4 and adding
 //the starting position column
-string file_parser::get_token(unsigned int row, unsigned int column){
+string file_parser::get_token(unsigned int row, unsigned int column)
+{
+    string token = "";
+    if(lineContent.size() < row)
+    {
+        cout << "Error: invalid token row request" << endl;
+        return token;
+    }
+
+    switch (column)
+    {
+        case 0:
+            token = lineContent[row].label;
+            break;
+        case 1:
+            token = lineContent[row].opcode;
+            break;
+        case 2:
+            token = lineContent[row].operand;
+            break;
+        case 3:
+            token = lineContent[row].comment;
+            break;
+        default:
+            cout << "Error: invalid token column request" << endl;
+    }
+    //return token;
 	int i= column + (4*row);
 	return v2[i];
 }
 
 //iterates through each vector element and tabs to make space for next element
 //when it has printed the fourth element in each row, creates new line
-void file_parser::print_file(){
+void file_parser::print_file()
+{
+//    for(unsigned int i = 0; i < lineContent.size(); i++)
+//    {
+//        cout << lineContent[i].label   << "\t"
+//             << lineContent[i].opcode  << "\t"
+//             << lineContent[i].operand << "\t"
+//             << lineContent[i].comment << "\n";
+//    }
+
 	for(unsigned int i = 0; i<v2.size();i++){
 		if(i % 4 == 0 && i!=0)
 			cout<<endl;
@@ -196,7 +291,8 @@ void file_parser::print_file(){
 //returns the size of text file by dividing the total number of 
 //vector elements by four and subtracting 1 
 int file_parser::size(){
-	return v2.size()/4 - 1;
+    return lineContent.size();
+	//return v2.size()/4 - 1;
 }
 
 string file_parser::int_to_string (int n){

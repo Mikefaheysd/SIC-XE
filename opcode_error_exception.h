@@ -10,26 +10,25 @@
 
 #ifndef OPCODE_ERROR_EXCEPTION_H
 #define OPCODE_ERROR_EXCEPTION_H
-#include <string> 
 
-using namespace std;
+#include <string>
 
 class opcode_error_exception {
 
-public:
-    opcode_error_exception(string s) {
-        message = s;        
+    public:
+        opcode_error_exception(std::string s) {
+            message = s;
         }
-        
-    opcode_error_exception() {
-        message = "An opcode error has occurred, opcode not found in table.";
+
+        opcode_error_exception() {
+            message = "An opcode error has occurred, opcode not found in table.";
         }
-        
-    string getMessage() {
-        return message;
-    }
-    
-private:
-    string message;
+
+        std::string getMessage() {
+            return message;
+        }
+
+    private:
+        std::string message;
 };   
 #endif

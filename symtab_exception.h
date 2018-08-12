@@ -6,26 +6,28 @@
 
 #ifndef SYMTAB_EXCEPTION_H
 #define SYMTAB_EXCEPTION_H
-#include <string>
 
-using namespace std;
+#include <string>
 
 class symtab_exception {
 
-public:
-    symtab_exception(string s) {
-        message = s;        
+    public:
+        symtab_exception(std::string s)
+        {
+            message = s;
         }
-        
-    symtab_exception() {
-        message = "A symtab error has occurred";
+
+        symtab_exception()
+        {
+            message = "A symtab error has occurred";
         }
-        
-    string getMessage() {
-        return message;
-    }
-    
-private:
-    string message;
+
+        std::string getMessage()
+        {
+            return message;
+        }
+
+    private:
+        std::string message;
 };    
 #endif
